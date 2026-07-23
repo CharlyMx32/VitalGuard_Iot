@@ -90,34 +90,49 @@ void dibujarPantalla()
   tft.fillCircle(270, 195, 4, TFT_RED);
 }
 
+void mostrarEstado(const char *msg, uint16_t color)
+{
+  tft.fillScreen(TFT_BLACK);
+  tft.setFreeFont(&FreeSansBold12pt7b);
+  tft.setTextColor(color, TFT_BLACK);
+  tft.setCursor(20, 160);
+  tft.println(msg);
+}
+
 void conectarWiFi()
 {
+  mostrarEstado("Conectando WiFi...", TFT_YELLOW);
+
   WiFiManager wm;
   wm.setConfigPortalTimeout(180);
   wm.setConnectTimeout(15);
 
   if (!wm.autoConnect("VitalGuard-AP"))
   {
-    Serial.println("WiFi: Falló conexión, reiniciando...");
+    mostrarEstado("WiFi: Fallo, reiniciando...", TFT_RED);
     delay(3000);
     ESP.restart();
   }
-  Serial.print("WiFi: Conectado a ");
-  Serial.println(WiFi.SSID());
+
+  mostrarEstado("WiFi: Conectado!", TFT_GREEN);
+  delay(500);
 }
 
 void conectarMQTT()
 {
+  mostrarEstado("Conectando MQTT...", TFT_YELLOW);
+
   mqttClient.setServer(mqtt_server, mqtt_port);
   if (mqttClient.connect("VitalGuard-ESP32"))
   {
-    Serial.println("MQTT: Conectado al servidor");
+    mostrarEstado("MQTT: Conectado!", TFT_GREEN);
   }
   else
   {
-    Serial.print("MQTT: Falló, rc=");
-    Serial.println(mqttClient.state());
+    mostrarEstado("MQTT: Fallo", TFT_RED);
   }
+
+  delay(800);
 }
 
 void setup()
@@ -125,17 +140,12 @@ void setup()
   Serial.begin(115200);
   Serial.println("\n=== VITALGUARD ST7789 ===");
 
-  conectarWiFi();
-  conectarMQTT();
-
-  delay(500);
-
   tft.init();
   tft.setRotation(1);
   tft.invertDisplay(true);
 
-  tft.fillScreen(TFT_BLACK);
-  delay(100);
+  conectarWiFi();
+  conectarMQTT();
 
   dibujarPantalla();
 
