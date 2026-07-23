@@ -1,8 +1,19 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <TFT_eSPI.h>
+#include <WiFiManager.h>
+#include <PubSubClient.h>
+#include <WiFi.h>
 
 TFT_eSPI tft = TFT_eSPI();
+
+// --- CONFIGURACIÓN MQTT ---
+const char *mqtt_server = "test.mosquitto.org";
+const int mqtt_port = 1883;
+const char *mqtt_topic_prefix = "vitalguard/";
+
+WiFiClient espClient;
+PubSubClient mqttClient(espClient);
 
 // Colores personalizados
 #define COLOR_HEADER 0x0515
@@ -79,10 +90,43 @@ void dibujarPantalla()
   tft.fillCircle(270, 195, 4, TFT_RED);
 }
 
+void conectarWiFi()
+{
+  WiFiManager wm;
+  wm.setConfigPortalTimeout(180);
+  wm.setConnectTimeout(15);
+
+  if (!wm.autoConnect("VitalGuard-AP"))
+  {
+    Serial.println("WiFi: Falló conexión, reiniciando...");
+    delay(3000);
+    ESP.restart();
+  }
+  Serial.print("WiFi: Conectado a ");
+  Serial.println(WiFi.SSID());
+}
+
+void conectarMQTT()
+{
+  mqttClient.setServer(mqtt_server, mqtt_port);
+  if (mqttClient.connect("VitalGuard-ESP32"))
+  {
+    Serial.println("MQTT: Conectado al servidor");
+  }
+  else
+  {
+    Serial.print("MQTT: Falló, rc=");
+    Serial.println(mqttClient.state());
+  }
+}
+
 void setup()
 {
   Serial.begin(115200);
   Serial.println("\n=== VITALGUARD ST7789 ===");
+
+  conectarWiFi();
+  conectarMQTT();
 
   delay(500);
 
@@ -100,5 +144,6 @@ void setup()
 
 void loop()
 {
+  mqttClient.loop();
   delay(1000);
 }
