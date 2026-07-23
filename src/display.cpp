@@ -11,7 +11,8 @@ void initDisplay()
   tft.setRotation(1);
   tft.invertDisplay(true);
   pinMode(TFT_BL, OUTPUT);
-  analogWrite(TFT_BL, 128);
+  analogWrite(TFT_BL, 64);
+  delay(500);
 }
 
 void mostrarEstado(const char *msg, uint16_t color)

@@ -20,6 +20,8 @@ void borrarCredencialesPantalla()
 
 void setup()
 {
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+
   Serial.begin(115200);
   Serial.println("\n=== VITALGUARD ST7789 ===");
 
