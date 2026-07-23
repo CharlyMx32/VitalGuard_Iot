@@ -12,11 +12,13 @@
 #define MQTT_PORT 1883
 #define MQTT_CLIENT_ID "VitalGuard-ESP32"
 #define MQTT_TOPIC_PREFIX "vitalguard/"
+#define MQTT_RECONNECT_DELAY 5000
 
 // ─── WIFI PORTAL ────────────────────────────────────
 #define WIFI_AP_NAME "VitalGuard-AP"
 #define PORTAL_TIMEOUT 180
 #define WIFI_CONNECT_TIMEOUT 30
+#define WIFI_AP_CONNECT_TIMEOUT 15
 
 // ─── PREFERENCES ────────────────────────────────────
 #define PREFS_NAMESPACE "vitalguard"

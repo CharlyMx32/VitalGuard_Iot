@@ -156,7 +156,7 @@ bool conectarWiFi()
   wm.setAPCallback(configModeCallback);
   wm.setWebServerCallback(bindServerCallback);
   wm.setConfigPortalTimeout(PORTAL_TIMEOUT);
-  wm.setConnectTimeout(0);
+  wm.setConnectTimeout(WIFI_AP_CONNECT_TIMEOUT);
 
   mostrarEstado("Buscando WiFi guardado...", TFT_CYAN);
   String savedSSID, savedPass;

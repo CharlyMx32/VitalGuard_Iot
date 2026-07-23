@@ -8,7 +8,7 @@ const char WIFI_PORTAL_HTML[] PROGMEM = R"rawliteral(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VitalGuard — Configurar WiFi</title>
+  <title>VitalGuard &mdash; Configurar WiFi</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -30,7 +30,9 @@ const char WIFI_PORTAL_HTML[] PROGMEM = R"rawliteral(
       align-items: center;
       justify-content: center;
       margin-bottom: 10px;
-      font-size: 30px;
+      font-size: 26px;
+      font-weight: 700;
+      color: #fff;
     }
     .title { font-size: 24px; font-weight: 700; color: #fff; }
     .subtitle { font-size: 14px; color: #94A3B8; }
@@ -74,8 +76,16 @@ const char WIFI_PORTAL_HTML[] PROGMEM = R"rawliteral(
       font-size: 16px;
       font-weight: 600;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
     .btn-primary:active { transform: scale(0.98); }
+    .btn-primary:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
     .btn-secondary {
       width: 100%;
       height: 44px;
@@ -148,17 +158,29 @@ const char WIFI_PORTAL_HTML[] PROGMEM = R"rawliteral(
       font-size: 14px;
       text-align: center;
     }
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
   <div class="header">
-    <div class="logo">🛡️</div>
+    <div class="logo">VG</div>
     <div class="title">VitalGuard</div>
-    <div class="subtitle">Configuraci&oacute;n WiFi</div>
+    <div class="subtitle">Configuracion WiFi</div>
   </div>
 
-  <div class="status-bar" id="status">📡 Escaneando redes...</div>
-  <div class="error-msg" id="errorMsg">❌ Error al conectar. Verifica tus credenciales.</div>
+  <div class="status-bar" id="status">Escaneando redes...</div>
+  <div class="error-msg" id="errorMsg">Error al conectar. Verifica tus credenciales.</div>
 
   <form action="/wifi" method="POST" id="wifiForm">
     <div class="card">
@@ -167,19 +189,19 @@ const char WIFI_PORTAL_HTML[] PROGMEM = R"rawliteral(
         <input type="text" name="s" id="ssid" placeholder="Selecciona o escribe tu red" required>
       </div>
       <div class="form-group">
-        <label>Contrase&ntilde;a</label>
-        <input type="password" name="p" id="pass" placeholder="Contrase&ntilde;a de la red">
+        <label>Contrasena</label>
+        <input type="password" name="p" id="pass" placeholder="Contrasena de la red">
       </div>
       
       <div id="networkContainer">
         <div style="font-size:12px;color:#94A3B8;margin:10px 0;">Redes disponibles:</div>
         <div class="network-list" id="networkList">
-          <div class="loading">🔍 Buscando redes...</div>
+          <div class="loading">Buscando redes...</div>
         </div>
       </div>
 
-      <button type="submit" class="btn-primary" id="btnConnect">🔗 Conectar</button>
-      <button type="button" class="btn-secondary" onclick="cargarRedes()">🔄 Actualizar</button>
+      <button type="submit" class="btn-primary" id="btnConnect">Conectar</button>
+      <button type="button" class="btn-secondary" onclick="cargarRedes()">Actualizar</button>
     </div>
   </form>
 
@@ -187,7 +209,6 @@ const char WIFI_PORTAL_HTML[] PROGMEM = R"rawliteral(
 
   <script>
     let escaneando = false;
-    let intentandoConectar = false;
 
     function cargarRedes() {
       if (escaneando) return;
@@ -196,27 +217,18 @@ const char WIFI_PORTAL_HTML[] PROGMEM = R"rawliteral(
       const status = document.getElementById('status');
       const list = document.getElementById('networkList');
       
-      status.textContent = '📡 Escaneando redes...';
-      list.innerHTML = '<div class="loading">⏳ Escaneando...</div>';
+      status.textContent = 'Escaneando redes...';
+      list.innerHTML = '<div class="loading">Escaneando...</div>';
 
       fetch('/scan')
         .then(response => {
-          if (!response.ok) {
-            throw new Error('Error HTTP: ' + response.status);
-          }
+          if (!response.ok) throw new Error('HTTP ' + response.status);
           return response.json();
         })
         .then(data => {
-          if (data.error) {
-            status.textContent = '❌ ' + data.error;
-            list.innerHTML = '<div class="loading" style="color:#FF6B6B;">Error: ' + data.error + '</div>';
-            escaneando = false;
-            return;
-          }
-
           if (!data.networks || data.networks.length === 0) {
-            status.textContent = '📡 No se encontraron redes';
-            list.innerHTML = '<div class="loading">❌ No hay redes disponibles</div>';
+            status.textContent = 'No se encontraron redes';
+            list.innerHTML = '<div class="loading">No hay redes disponibles</div>';
             escaneando = false;
             return;
           }
@@ -224,13 +236,13 @@ const char WIFI_PORTAL_HTML[] PROGMEM = R"rawliteral(
           const redes = data.networks.filter(net => net.ssid && net.ssid.length > 0);
           
           if (redes.length === 0) {
-            status.textContent = '📡 No se encontraron redes';
-            list.innerHTML = '<div class="loading">❌ No hay redes disponibles</div>';
+            status.textContent = 'No se encontraron redes';
+            list.innerHTML = '<div class="loading">No hay redes disponibles</div>';
             escaneando = false;
             return;
           }
 
-          status.textContent = '📡 ' + redes.length + ' redes encontradas';
+          status.textContent = redes.length + ' redes encontradas';
           list.innerHTML = '';
 
           redes.forEach((net) => {
@@ -243,16 +255,15 @@ const char WIFI_PORTAL_HTML[] PROGMEM = R"rawliteral(
               document.getElementById('pass').focus();
             };
             
-            let signal = '📶';
-            let strength = '';
-            if (net.rssi > -50) { signal = '📶'; strength = 'Excelente'; }
-            else if (net.rssi > -65) { signal = '📶'; strength = 'Buena'; }
-            else if (net.rssi > -75) { signal = '📶'; strength = 'Media'; }
-            else { signal = '📶'; strength = 'Débil'; }
+            let bars;
+            if (net.rssi > -50) bars = '|!|!|!| Excelente';
+            else if (net.rssi > -65) bars = '|!|!| Buena';
+            else if (net.rssi > -75) bars = '|!| Media';
+            else bars = '| Debil';
             
             div.innerHTML = `
               <span class="network-name">${net.ssid}</span>
-              <span class="network-signal">${signal} ${strength}</span>
+              <span class="network-signal">${bars}</span>
             `;
             list.appendChild(div);
           });
@@ -260,31 +271,33 @@ const char WIFI_PORTAL_HTML[] PROGMEM = R"rawliteral(
           escaneando = false;
         })
         .catch(error => {
-          console.error('Error:', error);
-          status.textContent = '❌ Error al escanear';
-          list.innerHTML = '<div class="loading" style="color:#FF6B6B;">❌ Error: ' + error.message + '</div>';
+          status.textContent = 'Error al escanear';
+          list.innerHTML = '<div class="loading" style="color:#FF6B6B;">Error: ' + error.message + '</div>';
           escaneando = false;
         });
     }
 
     document.getElementById('wifiForm').addEventListener('submit', function(e) {
       const ssid = document.getElementById('ssid').value.trim();
-      const pass = document.getElementById('pass').value.trim();
       const errorMsg = document.getElementById('errorMsg');
+      const btn = document.getElementById('btnConnect');
       
       if (!ssid || ssid.length < 1) {
         e.preventDefault();
         errorMsg.style.display = 'block';
-        errorMsg.textContent = '❌ Selecciona o escribe el nombre de la red';
+        errorMsg.textContent = 'Selecciona o escribe el nombre de la red';
         return;
       }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Conectando...';
     });
 
     window.addEventListener('load', function() {
       setTimeout(cargarRedes, 2000);
     });
 
-    var scanInterval = setInterval(cargarRedes, 8000);
+    var scanInterval = setInterval(cargarRedes, 12000);
     window.addEventListener('beforeunload', function() {
       clearInterval(scanInterval);
     });
@@ -299,7 +312,7 @@ const char SUCCESS_HTML[] PROGMEM = R"rawliteral(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VitalGuard — ¡Conectado!</title>
+  <title>VitalGuard &mdash; Conectado</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -371,19 +384,19 @@ const char SUCCESS_HTML[] PROGMEM = R"rawliteral(
 </head>
 <body>
   <div class="card">
-    <div class="icon">✅</div>
-    <div class="title">¡Conectado!</div>
+    <div class="icon">V</div>
+    <div class="title">Conectado</div>
     <div class="subtitle">VitalGuard se ha conectado exitosamente</div>
     <div style="margin: 15px 0;">
       <span class="status-dot"></span>
-      <span style="color:#94A3B8;font-size:14px;"> Dispositivo en l&iacute;nea</span>
+      <span style="color:#94A3B8;font-size:14px;"> Dispositivo en linea</span>
     </div>
     <div class="detail">
-      <span style="color:#E2E8F0;">El dispositivo se reiniciar&aacute; autom&aacute;ticamente</span><br>
-      <span style="color:#64748B;font-size:12px;">y se conectar&aacute; a tu red WiFi</span>
+      <span style="color:#E2E8F0;">El dispositivo se reiniciara automaticamente</span><br>
+      <span style="color:#64748B;font-size:12px;">y se conectara a tu red WiFi</span>
     </div>
   </div>
-  <div class="footer">VitalGuard v1.0 — Tecnolog&iacute;a que cuida a quienes nos cuidaron</div>
+  <div class="footer">VitalGuard v1.0 &mdash; Tecnologia que cuida</div>
 </body>
 </html>
 )rawliteral";
