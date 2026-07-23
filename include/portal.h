@@ -293,13 +293,22 @@ const char WIFI_PORTAL_HTML[] PROGMEM = R"rawliteral(
       btn.innerHTML = '<span class="spinner"></span> Conectando...';
     });
 
-    window.addEventListener('load', function() {
-      setTimeout(cargarRedes, 2000);
-    });
+    function iniciarEscaneo() {
+      cargarRedes();
+      var checkInterval = setInterval(function() {
+        var list = document.getElementById('networkList');
+        var hasNetworks = list.querySelector('.network-item') !== null;
+        if (hasNetworks) {
+          clearInterval(checkInterval);
+        } else {
+          cargarRedes();
+        }
+      }, 2000);
+      setTimeout(function() { clearInterval(checkInterval); }, 30000);
+    }
 
-    var scanInterval = setInterval(cargarRedes, 12000);
-    window.addEventListener('beforeunload', function() {
-      clearInterval(scanInterval);
+    window.addEventListener('load', function() {
+      setTimeout(iniciarEscaneo, 500);
     });
   </script>
 </body>

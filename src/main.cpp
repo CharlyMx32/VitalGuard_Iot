@@ -1,11 +1,8 @@
 #include <Arduino.h>
-#include <esp_task_wdt.h>
 #include "config.h"
 #include "display.h"
 #include "wifi_connect.h"
 #include "mqtt_connect.h"
-
-
 
 void borrarCredencialesPantalla()
 {
@@ -24,9 +21,6 @@ void setup()
 
   Serial.begin(115200);
   Serial.println("\n=== VITALGUARD ST7789 ===");
-
-  esp_task_wdt_init(10, true);
-  esp_task_wdt_add(NULL);
 
   pinMode(BOTON_RESET, INPUT_PULLUP);
   initDisplay();
@@ -84,6 +78,5 @@ void loop()
     }
   }
 
-  esp_task_wdt_reset();
   delay(100);
 }

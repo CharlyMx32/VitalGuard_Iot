@@ -8,6 +8,15 @@
 WiFiManager wm;
 Preferences prefs;
 
+unsigned long lastScanTime = 0;
+String cachedNetworks = "{\"networks\":[]}";
+
+void iniciarEscaneo()
+{
+  WiFi.scanNetworks(true);
+  lastScanTime = millis();
+}
+
 void guardarCredenciales(const char *ssid, const char *pass)
 {
   prefs.begin(PREFS_NAMESPACE, false);
@@ -37,6 +46,8 @@ void borrarCredenciales()
 
 void configModeCallback(WiFiManager *)
 {
+  iniciarEscaneo();
+
   tft.fillScreen(TFT_BLACK);
   tft.setTextColor(TFT_CYAN, TFT_BLACK);
   tft.setFreeFont(&FreeSansBold12pt7b);
@@ -77,10 +88,16 @@ void bindServerCallback()
 
   wm.server->on("/scan", HTTP_GET, []()
   {
+    if (millis() - lastScanTime < 30000 && cachedNetworks != "{\"networks\":[]}")
+    {
+      wm.server->send(200, "application/json", cachedNetworks);
+      return;
+    }
+
     int n = WiFi.scanComplete();
     if (n == -2)
     {
-      WiFi.scanNetworks(true);
+      iniciarEscaneo();
       wm.server->send(200, "application/json", "{\"networks\":[]}");
       return;
     }
@@ -89,6 +106,7 @@ void bindServerCallback()
       wm.server->send(200, "application/json", "{\"networks\":[]}");
       return;
     }
+
     String json = "{\"networks\":[";
     int count = 0;
     for (int i = 0; i < n; i++)
@@ -103,6 +121,9 @@ void bindServerCallback()
     }
     WiFi.scanDelete();
     json += "]}";
+
+    cachedNetworks = json;
+    lastScanTime = millis();
     wm.server->send(200, "application/json", json);
   });
 
@@ -118,8 +139,6 @@ void bindServerCallback()
     String pass = wm.server->arg("p");
     Serial.printf("[Server] Conectando a: %s\n", ssid.c_str());
 
-    guardarCredenciales(ssid.c_str(), pass.c_str());
-
     WiFi.begin(ssid.c_str(), pass.c_str());
     int intentos = 0;
     while (WiFi.status() != WL_CONNECTED && intentos < 20)
@@ -130,6 +149,7 @@ void bindServerCallback()
 
     if (WiFi.status() == WL_CONNECTED)
     {
+      guardarCredenciales(ssid.c_str(), pass.c_str());
       Serial.println("[Server] Conexion exitosa!");
       wm.server->send_P(200, "text/html", SUCCESS_HTML);
       delay(3000);
@@ -139,7 +159,7 @@ void bindServerCallback()
     {
       Serial.println("[Server] Conexion fallida");
       wm.server->send(200, "text/html",
-        "<html><body style='font-family:sans-serif;background:#0A192F;color:#E2E8F0;display:flex;align-items:center;justify-content:center;height:100vh;'><div style='text-align:center;padding:20px;'><h2 style='color:#FF6B6B;'> Error al conectar</h2><p style='color:#94A3B8;'>Verifica la contrase&ntilde;a e intenta de nuevo</p><a href='/' style='display:inline-block;margin-top:20px;padding:12px 24px;background:#4A90E2;color:#fff;border-radius:8px;text-decoration:none;'>Volver</a></div></body></html>");
+        "<html><head><meta http-equiv='refresh' content='4;url=/'></head><body style='font-family:sans-serif;background:#0A192F;color:#E2E8F0;display:flex;align-items:center;justify-content:center;height:100vh;'><div style='text-align:center;padding:20px;'><h2 style='color:#FF6B6B;'>Error al conectar</h2><p style='color:#94A3B8;'>Verifica la contrasena e intenta de nuevo</p><p style='color:#64748B;font-size:13px;margin-top:20px;'>Volviendo a la configuracion...</p></div></body></html>");
     }
   });
 
@@ -160,7 +180,9 @@ bool conectarWiFi()
 
   mostrarEstado("Buscando WiFi guardado...", TFT_CYAN);
   String savedSSID, savedPass;
-  if (cargarCredenciales(savedSSID, savedPass))
+  bool credencialesPrevias = cargarCredenciales(savedSSID, savedPass);
+
+  if (credencialesPrevias)
   {
     Serial.printf("[WiFi] Credenciales encontradas para: %s\n", savedSSID.c_str());
     WiFi.begin(savedSSID.c_str(), savedPass.c_str());
@@ -168,6 +190,11 @@ bool conectarWiFi()
     {
       if (WiFi.status() == WL_CONNECTED) break;
       delay(500);
+    }
+    if (WiFi.status() != WL_CONNECTED)
+    {
+      Serial.println("[WiFi] Credenciales invalidas, borrando...");
+      borrarCredenciales();
     }
   }
 
