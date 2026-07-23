@@ -99,11 +99,23 @@ void mostrarEstado(const char *msg, uint16_t color)
   tft.println(msg);
 }
 
+void configModeCallback(WiFiManager *)
+{
+  tft.fillScreen(TFT_BLACK);
+  tft.setFreeFont(&FreeSansBold12pt7b);
+  tft.setTextColor(TFT_CYAN, TFT_BLACK);
+  tft.setCursor(20, 130);
+  tft.println("Conectate a WiFi:");
+  tft.setFreeFont(&FreeSansBold12pt7b);
+  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+  tft.setCursor(20, 170);
+  tft.println("'VitalGuard-AP'");
+}
+
 void conectarWiFi()
 {
-  mostrarEstado("Conectando WiFi...", TFT_YELLOW);
-
   WiFiManager wm;
+  wm.setAPCallback(configModeCallback);
   wm.setConfigPortalTimeout(180);
   wm.setConnectTimeout(15);
 
