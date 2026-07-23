@@ -308,13 +308,14 @@ const char WIFI_PORTAL_HTML[] PROGMEM = R"rawliteral(
       }
     });
 
-    // Cargar al iniciar
     window.addEventListener('load', function() {
-      setTimeout(cargarRedes, 1000);
+      setTimeout(cargarRedes, 2000);
     });
 
-    // Recargar cada 30 segundos
-    setInterval(cargarRedes, 30000);
+    var scanInterval = setInterval(cargarRedes, 8000);
+    window.addEventListener('beforeunload', function() {
+      clearInterval(scanInterval);
+    });
   </script>
 </body>
 </html>
@@ -490,41 +491,33 @@ void bindServerCallback()
     Serial.println("[Server] Página de éxito");
     wm.server->send_P(200, "text/html", SUCCESS_HTML); });
 
-  // Escaneo de redes
   wm.server->on("/scan", HTTP_GET, []()
                 {
-    Serial.println("[Server] Solicitud de escaneo");
-    
-    String json = "{\"networks\":[";
     int n = WiFi.scanComplete();
-    
-    if (n == -2) {
-      Serial.println("[Server] Iniciando escaneo...");
+    if (n == -2)
+    {
       WiFi.scanNetworks(true);
-      json += "]}";
-      wm.server->send(200, "application/json", json);
+      wm.server->send(200, "application/json", "{\"networks\":[]}");
       return;
     }
-    
-    if (n > 0) {
-      Serial.printf("[Server] %d redes encontradas\n", n);
-      int count = 0;
-      for (int i = 0; i < n; i++) {
-        String ssid = WiFi.SSID(i);
-        if (ssid.length() > 0) {
-          if (count > 0) json += ",";
-          json += "{";
-          json += "\"ssid\":\"" + ssid + "\",";
-          json += "\"rssi\":" + String(WiFi.RSSI(i));
-          json += "}";
-          count++;
-        }
-      }
-      WiFi.scanDelete();
-    } else {
-      Serial.println("[Server] No hay redes o escaneo en progreso");
+    if (n == -1)
+    {
+      wm.server->send(200, "application/json", "{\"networks\":[]}");
+      return;
     }
-    
+    String json = "{\"networks\":[";
+    int count = 0;
+    for (int i = 0; i < n; i++)
+    {
+      String ssid = WiFi.SSID(i);
+      if (ssid.length() > 0)
+      {
+        if (count > 0) json += ",";
+        json += "{\"ssid\":\"" + ssid + "\",\"rssi\":" + String(WiFi.RSSI(i)) + "}";
+        count++;
+      }
+    }
+    WiFi.scanDelete();
     json += "]}";
     wm.server->send(200, "application/json", json); });
 
@@ -534,12 +527,8 @@ void bindServerCallback()
     wm.server->sendHeader("Location", "/", true);
     wm.server->send(302, "text/plain", ""); });
 
-  // Manejar todas las demás rutas
   wm.server->onNotFound([]()
-                        {
-    Serial.println("[Server] Ruta no encontrada, redirigiendo a /");
-    wm.server->sendHeader("Location", "/", true);
-    wm.server->send(302, "text/plain", ""); });
+                        { wm.server->send(200, "text/plain", ""); });
 
   Serial.println("[Server] Rutas configuradas correctamente");
 }
