@@ -4,6 +4,7 @@
 #include <WiFiManager.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
+#include <Preferences.h>
 
 // Definir pin de backlight si no está definido
 #ifndef TFT_BL
@@ -24,6 +25,35 @@ PubSubClient mqttClient(espClient);
 
 // --- INSTANCIA WiFiManager ---
 WiFiManager wm;
+
+Preferences prefs;
+
+void guardarCredenciales(const char *ssid, const char *pass)
+{
+  prefs.begin("vitalguard", false);
+  prefs.putString("ssid", ssid);
+  prefs.putString("pass", pass);
+  prefs.end();
+  Serial.println("[Creds] Credenciales guardadas");
+}
+
+bool cargarCredenciales(String &ssid, String &pass)
+{
+  prefs.begin("vitalguard", true);
+  ssid = prefs.getString("ssid", "");
+  pass = prefs.getString("pass", "");
+  prefs.end();
+  return ssid.length() > 0;
+}
+
+void borrarCredenciales()
+{
+  prefs.begin("vitalguard", false);
+  prefs.remove("ssid");
+  prefs.remove("pass");
+  prefs.end();
+  Serial.println("[Creds] Credenciales borradas");
+}
 
 // ═══════════════════════════════════════════════════════
 //  HTML DEL PORTAL WiFi
@@ -457,13 +487,14 @@ void configModeCallback(WiFiManager *wm)
   tft.println("IP: 192.168.4.1");
 }
 
-void borrarCredenciales()
+void borrarCredencialesPantalla()
 {
   tft.fillScreen(TFT_BLACK);
   tft.setTextColor(TFT_YELLOW, TFT_BLACK);
   tft.setFreeFont(&FreeSansBold9pt7b);
   tft.setCursor(20, 130);
   tft.println("Borrando credenciales...");
+  borrarCredenciales();
   wm.resetSettings();
   delay(1000);
   mostrarEstado("Credenciales borradas!", TFT_GREEN);
@@ -527,6 +558,37 @@ void bindServerCallback()
     wm.server->sendHeader("Location", "/", true);
     wm.server->send(302, "text/plain", ""); });
 
+  // /wifi - Guardar credenciales y conectar (reemplaza handler interno)
+  wm.server->on("/wifi", HTTP_POST, []()
+                {
+    String ssid = wm.server->arg("s");
+    String pass = wm.server->arg("p");
+    Serial.printf("[Server] Conectando a: %s\n", ssid.c_str());
+
+    guardarCredenciales(ssid.c_str(), pass.c_str());
+
+    WiFi.begin(ssid.c_str(), pass.c_str());
+    int intentos = 0;
+    while (WiFi.status() != WL_CONNECTED && intentos < 20)
+    {
+      delay(500);
+      intentos++;
+    }
+
+    if (WiFi.status() == WL_CONNECTED)
+    {
+      Serial.println("[Server] Conexion exitosa!");
+      wm.server->send_P(200, "text/html", SUCCESS_HTML);
+      delay(3000);
+      ESP.restart();
+    }
+    else
+    {
+      Serial.println("[Server] Conexion fallida");
+      wm.server->send(200, "text/html",
+                       "<html><body style='font-family:sans-serif;background:#0A192F;color:#E2E8F0;display:flex;align-items:center;justify-content:center;height:100vh;'><div style='text-align:center;padding:20px;'><h2 style='color:#FF6B6B;'>❌ Error al conectar</h2><p style='color:#94A3B8;'>Verifica la contraseña e intenta de nuevo</p><a href='/' style='display:inline-block;margin-top:20px;padding:12px 24px;background:#4A90E2;color:#fff;border-radius:8px;text-decoration:none;'>Volver</a></div></body></html>");
+    } });
+
   wm.server->onNotFound([]()
                         { wm.server->send(200, "text/plain", ""); });
 
@@ -577,20 +639,10 @@ void setup()
   if (digitalRead(BOTON_RESET) == LOW)
   {
     Serial.println("Botón presionado - Borrando credenciales");
-    borrarCredenciales();
+    borrarCredencialesPantalla();
     while (1)
       ;
   }
-
-  // ── Mensaje inicial ──
-  tft.fillScreen(TFT_BLACK);
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.setFreeFont(&FreeSansBold9pt7b);
-  tft.setCursor(20, 130);
-  tft.println("Iniciando VitalGuard...");
-  tft.setCursor(20, 170);
-  tft.println("Presiona BOOT para resetear");
-  delay(1000);
 
   // ── CONFIGURAR WiFiManager ──
   wm.setAPCallback(configModeCallback);
@@ -598,23 +650,31 @@ void setup()
   wm.setConfigPortalTimeout(180);
   wm.setConnectTimeout(0);
 
-  // ── Conectar WiFi ──
-  mostrarEstado("Buscando WiFi...", TFT_CYAN);
-  delay(100);
-
-  Serial.println("[WiFi] Iniciando autoConnect...");
-  if (!wm.autoConnect("VitalGuard-AP"))
+  // ── Intentar conectar con credenciales guardadas ──
+  mostrarEstado("Buscando WiFi guardado...", TFT_CYAN);
+  String savedSSID, savedPass;
+  if (cargarCredenciales(savedSSID, savedPass))
   {
-    Serial.println("[WiFi] Fallo al conectar - Modo AP");
-    mostrarEstado("Modo AP activado", TFT_YELLOW);
-    delay(500);
+    Serial.printf("[WiFi] Credenciales encontradas para: %s\n", savedSSID.c_str());
+    WiFi.begin(savedSSID.c_str(), savedPass.c_str());
+    for (int i = 0; i < 30; i++)
+    {
+      if (WiFi.status() == WL_CONNECTED) break;
+      delay(500);
+    }
+  }
+
+  // ── Si no hay credenciales o falló, abrir portal ──
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    Serial.println("[WiFi] Sin credenciales validas - Abriendo portal...");
+    wm.autoConnect("VitalGuard-AP");
   }
 
   // ── Verificar conexión ──
   if (WiFi.status() == WL_CONNECTED)
   {
     mostrarEstado("WiFi: Conectado!", TFT_GREEN);
-    Serial.println("[VitalGuard] WiFi conectado!");
     Serial.print("[VitalGuard] IP: ");
     Serial.println(WiFi.localIP());
     delay(500);
@@ -626,12 +686,10 @@ void setup()
     tft.setFreeFont(&FreeSansBold12pt7b);
     tft.setCursor(30, 140);
     tft.println("SISTEMA LISTO");
-
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
     tft.setFreeFont(&FreeSansBold9pt7b);
     tft.setCursor(40, 190);
     tft.println("Conectado a:");
-
     tft.setTextColor(TFT_CYAN, TFT_BLACK);
     tft.setFreeFont(&FreeSansBold9pt7b);
     tft.setCursor(40, 220);
@@ -644,17 +702,14 @@ void setup()
     tft.setFreeFont(&FreeSansBold12pt7b);
     tft.setCursor(20, 100);
     tft.println("MODO CONFIG");
-
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
     tft.setFreeFont(&FreeSansBold9pt7b);
     tft.setCursor(20, 160);
     tft.println("Conectate a:");
-
     tft.setTextColor(TFT_CYAN, TFT_BLACK);
     tft.setFreeFont(&FreeSansBold12pt7b);
     tft.setCursor(20, 200);
     tft.println("VitalGuard-AP");
-
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
     tft.setFreeFont(&FreeSansBold9pt7b);
     tft.setCursor(20, 250);
@@ -674,7 +729,7 @@ void loop()
     if (digitalRead(BOTON_RESET) == LOW)
     {
       Serial.println("Botón presionado - Borrando credenciales");
-      borrarCredenciales();
+      borrarCredencialesPantalla();
     }
   }
 
