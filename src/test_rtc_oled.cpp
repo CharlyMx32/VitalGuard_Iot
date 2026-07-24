@@ -14,6 +14,17 @@
 Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 RTC_DS3231 rtc;
 
+bool oledOK = false;
+bool rtcOK = false;
+
+void mostrarOLED(int linea, const char *texto)
+{
+  if (!oledOK) return;
+  oled.setCursor(0, linea * 10);
+  oled.println(texto);
+  oled.display();
+}
+
 void setup()
 {
   Serial.begin(115200);
@@ -22,67 +33,78 @@ void setup()
 
   Wire.begin(SDA_PIN, SCL_PIN);
 
-  if (!oled.begin(SSD1306_SWITCHCAPVCC, 0x3C))
+  oledOK = oled.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  if (oledOK)
   {
-    Serial.println("[OLED] No se encontro en 0x3C");
-    while (1);
-  }
-  Serial.println("[OLED] OK");
-
-  if (!rtc.begin())
-  {
-    Serial.println("[RTC] No se encontro");
-    while (1);
-  }
-  Serial.println("[RTC] OK");
-
-  if (rtc.lostPower())
-  {
-    Serial.println("[RTC] Perdio energia - ajustando a fecha de compilacion");
-    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    oled.clearDisplay();
+    oled.setTextSize(1);
+    oled.setTextColor(SSD1306_WHITE);
+    mostrarOLED(0, "VitalGuard TEST");
+    mostrarOLED(1, "----------------");
+    mostrarOLED(2, "Init I2C... OK");
   }
 
-  oled.clearDisplay();
-  oled.setTextSize(1);
-  oled.setTextColor(SSD1306_WHITE);
-  oled.setCursor(20, 0);
-  oled.println("VitalGuard");
-  oled.drawFastHLine(0, 10, 128, SSD1306_WHITE);
-  oled.display();
+  rtcOK = rtc.begin();
+  if (rtcOK)
+  {
+    Serial.println("[RTC] OK");
+    if (oledOK) mostrarOLED(3, "RTC: OK");
+    if (rtc.lostPower())
+    {
+      rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+      if (oledOK) mostrarOLED(4, "RTC: Ajustado");
+    }
+  }
+  else
+  {
+    Serial.println("[RTC] No encontrado");
+    if (oledOK) mostrarOLED(3, "RTC: NO ENCONTRADO");
+    if (oledOK) mostrarOLED(4, "Conecta RTC y resetea");
+  }
+
+  if (oledOK) mostrarOLED(5, "----------------");
+  if (oledOK) mostrarOLED(6, "Esperando datos...");
 
   Serial.println("Listo!");
 }
 
 void loop()
 {
+  if (!rtcOK)
+  {
+    if (oledOK)
+    {
+      oled.clearDisplay();
+      oled.setTextSize(1);
+      oled.setTextColor(SSD1306_WHITE);
+      mostrarOLED(0, "VitalGuard TEST");
+      mostrarOLED(1, "----------------");
+      mostrarOLED(3, "RTC: NO ENCONTRADO");
+      mostrarOLED(4, "Conecta RTC");
+      mostrarOLED(5, "y presiona RESET");
+    }
+    delay(1000);
+    return;
+  }
+
   DateTime now = rtc.now();
 
   oled.clearDisplay();
-
   oled.setTextSize(1);
   oled.setTextColor(SSD1306_WHITE);
-  oled.setCursor(20, 0);
-  oled.println("VitalGuard");
-  oled.drawFastHLine(0, 10, 128, SSD1306_WHITE);
 
-  oled.setCursor(10, 20);
-  oled.print("Fecha: ");
-  oled.print(now.day());
-  oled.print("/");
-  oled.print(now.month());
-  oled.print("/");
-  oled.println(now.year());
+  mostrarOLED(0, "VitalGuard TEST");
+  mostrarOLED(1, "----------------");
 
-  oled.setCursor(10, 35);
-  oled.print("Hora:  ");
-  oled.printf("%02d:%02d:%02d", now.hour(), now.minute(), now.second());
+  char line[22];
+  snprintf(line, sizeof(line), "%02d/%02d/%04d", now.day(), now.month(), now.year());
+  mostrarOLED(2, line);
 
-  oled.setCursor(10, 50);
-  oled.print("Temp:  ");
-  oled.print(rtc.getTemperature());
-  oled.print(" C");
+  snprintf(line, sizeof(line), "%02d:%02d:%02d", now.hour(), now.minute(), now.second());
+  mostrarOLED(3, line);
 
-  oled.display();
+  snprintf(line, sizeof(line), "Temp: %.1f C", rtc.getTemperature());
+  mostrarOLED(5, line);
 
   Serial.printf("[RTC] %02d/%02d/%04d %02d:%02d:%02d Temp: %.2f C\n",
     now.day(), now.month(), now.year(),
